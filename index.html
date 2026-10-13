@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b101c">
+  <title>블록깨기 · 작은 오락실</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif; }
+    body { margin: 0; min-height: 100svh; background: #0b101c; color: #f1f4fa; }
+    body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 15%, #21324d55, transparent 65%); }
+    main { position: relative; width: min(100% - 40px, 860px); margin: 0 auto; padding: 44px 0 24px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+    .eyebrow { margin: 0 0 9px; color: #8c9bb5; font-size: 11px; letter-spacing: .2em; }
+    h1 { font-size: clamp(27px, 4vw, 36px); letter-spacing: -.06em; margin: 0; }
+    .badge { padding: 8px 12px; color: #a9b7cb; border: 1px solid #29344a; border-radius: 30px; font-size: 12px; }
+    .badge::before { content: ""; display: inline-block; width: 6px; height: 6px; background: #71dfb1; border-radius: 50%; margin-right: 7px; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+    .stat { background: #141d2d; border: 1px solid #273248; border-radius: 12px; padding: 14px 20px; }
+    .label { color: #94a3bb; font-size: 12px; display: block; margin-bottom: 7px; }
+    .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .03em; }
+    .unit { color: #7b8ba5; font-size: 13px; font-weight: 400; margin-left: 6px; }
+    #hearts { color: #ff7888; font-size: 23px; letter-spacing: .12em; }
+    .board { position: relative; overflow: hidden; border: 1px solid #2c3a52; border-radius: 16px; background: #0d1524; box-shadow: 0 20px 65px #0005; }
+    canvas { display: block; width: 100%; height: auto; aspect-ratio: 800 / 620; touch-action: none; outline: none; }
+    canvas:focus-visible { outline: 2px solid #91b8ff; outline-offset: -4px; }
+    .overlay { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: auto; }
+    .overlay[hidden] { display: none; }
+    .dialog { text-align: center; width: min(90%, 370px); padding: 25px 18px; border-radius: 18px; background: #101b2bef; border: 1px solid #34435e; box-shadow: 0 16px 60px #0005; pointer-events: auto; }
+    .dialog .marker { color: #8fb5ff; font-size: 11px; letter-spacing: .12em; margin: 0 0 12px; }
+    .dialog h2 { font-size: clamp(23px, 4vw, 30px); margin: 0 0 10px; letter-spacing: -.05em; }
+    .dialog p { color: #a7b5cc; font-size: 13px; line-height: 1.8; margin: 0 0 18px; }
+    button { border: 0; border-radius: 9px; background: #eaf1ff; color: #17243b; font: inherit; font-size: 14px; font-weight: 700; padding: 12px 25px; cursor: pointer; min-height: 44px; }
+    button:hover { background: white; }
+    button:focus-visible { outline: 3px solid #82adff; outline-offset: 4px; }
+    .controls { display: flex; justify-content: center; gap: 27px; flex-wrap: wrap; padding: 19px 0 10px; color: #99a8c0; font-size: 12px; }
+    kbd { display: inline-block; padding: 3px 7px; border: 1px solid #344058; border-bottom-width: 2px; border-radius: 5px; color: #d0daeb; font-family: inherit; font-size: 11px; margin-right: 4px; }
+    footer { text-align: center; font-size: 11px; color: #667792; margin-top: 14px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    @media (max-width: 520px) {
+      main { width: calc(100% - 24px); padding-top: 24px; }
+      header { margin-bottom: 20px; }
+      .badge { font-size: 10px; padding: 7px 9px; }
+      .stats { gap: 7px; margin-bottom: 10px; }
+      .stat { padding: 12px; }
+      .value { font-size: 22px; }
+      #hearts { font-size: 18px; }
+      .dialog { padding: 16px 12px; }
+      .dialog p { margin-bottom: 12px; font-size: 11px; }
+      .dialog .marker { margin-bottom: 6px; }
+      .controls { gap: 12px; line-height: 1.8; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div><p class="eyebrow">잠깐의 즐거움, 작은 오락실</p><h1>블록깨기<span style="color:#83aaff">.</span></h1></div>
+      <span class="badge">한 판의 도전</span>
+    </header>
+    <section class="stats" aria-label="게임 현황">
+      <div class="stat"><span class="label">점수</span><span id="score" class="value">0</span><span class="unit">점</span></div>
+      <div class="stat"><span class="label">남은 목숨</span><span id="hearts" aria-hidden="true">♥ ♥ ♥</span><span id="lives" class="sr-only">3개</span></div>
+      <div class="stat"><span class="label">남은 블록</span><span id="remaining" class="value">40</span><span class="unit">/ 40</span></div>
+    </section>
+    <section class="board" aria-label="블록깨기 게임">
+      <canvas id="game" width="800" height="620" tabindex="0" aria-label="방향키 또는 마우스로 패들을 움직이고 스페이스바로 공을 발사하세요. 터치로도 조작할 수 있습니다.">이 게임은 Canvas를 지원하는 최신 브라우저에서 실행할 수 있습니다.</canvas>
+      <div id="overlay" class="overlay">
+        <div class="dialog">
+          <p class="marker" id="marker">준비됐나요?</p>
+          <h2 id="title">모든 블록을 깨보세요</h2>
+          <p id="message">스페이스바 또는 터치로 시작<br>패들을 움직여 공을 받아주세요.</p>
+          <button id="action" type="button">게임 시작 <span aria-hidden="true">↗</span></button>
+        </div>
+      </div>
+    </section>
+    <div class="controls" aria-label="조작 방법">
+      <span><kbd>←</kbd><kbd>→</kbd> 패들 이동</span>
+      <span><kbd>스페이스</kbd> 공 발사</span>
+      <span>마우스 · 터치로도 조작 가능</span>
+    </div>
+    <footer>블록 하나에 10점 · 목숨은 세 번 · 목표는 400점</footer>
+    <p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
+  </main>
+  <script>
+    'use strict';
+    // 모든 좌표는 800 × 620 기준입니다. 화면 크기가 바뀌어도 규칙은 같습니다.
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const ui = Object.fromEntries(['score', 'hearts', 'lives', 'remaining', 'overlay', 'marker', 'title', 'message', 'action', 'announcement'].map(id => [id, document.getElementById(id)]));
+    const W = 800, H = 620, SPEED = 350, PADDLE_SPEED = 560;
+    const STEP = 1 / 240;
+    const colors = ['#f57485', '#f5a16c', '#f2cf70', '#6fd2b0', '#759ff0'];
+    const paddle = { x: 344, y: 567, w: 112, h: 12 };
+    const ball = { x: 400, y: 557, r: 7, vx: 0, vy: 0 };
+    const keys = { left: false, right: false };
+    let blocks = [], score = 0, lives = 3, state = 'ready';
+    let lastTime = null, accumulator = 0;
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+    function updateHUD() {
+      ui.score.textContent = score;
+      ui.hearts.textContent = Array.from({ length: 3 }, (_, i) => i < lives ? '♥' : '♡').join(' ');
+      ui.lives.textContent = `${lives}개`;
+      ui.remaining.textContent = blocks.filter(block => block.alive).length;
+    }
+
+    function dockBall() {
+      ball.x = paddle.x + paddle.w / 2;
+      ball.y = paddle.y - ball.r - 2;
+      ball.vx = 0;
+      ball.vy = 0;
+    }
+
+    function resetGame() {
+      score = 0;
+      lives = 3;
+      state = 'ready';
+      paddle.x = (W - paddle.w) / 2;
+      // 5줄 × 8칸: 각 블록은 한 번만 맞으면 사라집니다.
+      blocks = [];
+      for (let row = 0; row < 5; row++) {
+        for (let col = 0; col < 8; col++) {
+          blocks.push({ x: 40 + col * 91, y: 64 + row * 37, w: 83, h: 27, color: colors[row], alive: true });
+        }
+      }
+      dockBall();
+      updateHUD();
+      showOverlay('준비됐나요?', '모든 블록을 깨보세요', '스페이스바 또는 터치로 시작<br>패들을 움직여 공을 받아주세요.', '게임 시작 ↗');
+    }
+
+    function showOverlay(marker, title, message, action) {
+      ui.marker.textContent = marker;
+      ui.title.textContent = title;
+      ui.message.innerHTML = message;
+      ui.action.textContent = action;
+      ui.overlay.hidden = false;
+    }
+
+    function start() {
+      if (state === 'over' || state === 'won') resetGame();
+      if (state !== 'ready') return;
+      state = 'playing';
+      // 위로 충분히 향하는 각도로 발사하여 수평 왕복을 방지합니다.
+      ball.vx = SPEED * 0.35;
+      ball.vy = -Math.sqrt(SPEED * SPEED - ball.vx * ball.vx);
+      ui.overlay.hidden = true;
+      ui.announcement.textContent = '공 발사!';
+    }
+
+    function finish(won) {
+      state = won ? 'won' : 'over';
+      const title = won ? '클리어!' : '게임 오버';
+      showOverlay(won ? '40개의 블록, 모두 성공!' : '다음 도전을 기다릴게요', title, `최종 점수 <strong>${score}점</strong><br>스페이스바 또는 버튼으로 다시 시작`, '다시 시작 ↗');
+      ui.announcement.textContent = `${title}. 최종 점수 ${score}점.`;
+    }
+
+    function loseLife() {
+      lives--;
+      updateHUD();
+      if (lives === 0) { finish(false); return; }
+      state = 'ready';
+      dockBall();
+      showOverlay(`남은 목숨 ${lives}개`, '한 번 더 도전해볼까요?', '스페이스바 또는 터치로 시작', '공 발사 ↗');
+      ui.announcement.textContent = `공을 놓쳤습니다. 남은 목숨 ${lives}개.`;
+    }
+
+    // 원과 사각형 사이의 가장 가까운 점으로 모서리 충돌도 확인합니다.
+    function collideRect(rect) {
+      const nearX = clamp(ball.x, rect.x, rect.x + rect.w);
+      const nearY = clamp(ball.y, rect.y, rect.y + rect.h);
+      const dx = ball.x - nearX, dy = ball.y - nearY;
+      const distance = Math.hypot(dx, dy);
+      if (distance > ball.r) return false;
+      let nx, ny, push;
+      if (distance > 0) {
+        nx = dx / distance;
+        ny = dy / distance;
+        push = ball.r - distance + 0.01;
+      } else {
+        // 공의 중심이 블록 안에 들어간 경우 가장 가까운 면 밖으로 꺼냅니다.
+        const sides = [
+          { d: ball.x - rect.x, x: -1, y: 0 },
+          { d: rect.x + rect.w - ball.x, x: 1, y: 0 },
+          { d: ball.y - rect.y, x: 0, y: -1 },
+          { d: rect.y + rect.h - ball.y, x: 0, y: 1 }
+        ];
+        const side = sides.reduce((a, b) => a.d < b.d ? a : b);
+        nx = side.x; ny = side.y; push = ball.r + side.d + 0.01;
+      }
+      ball.x += nx * push;
+      ball.y += ny * push;
+      const toward = ball.vx * nx + ball.vy * ny;
+      if (toward < 0) {
+        ball.vx -= 2 * toward * nx;
+        ball.vy -= 2 * toward * ny;
+      }
+      // 모서리에 맞아도 수직 이동량을 확보하고 전체 속도는 일정하게 유지합니다.
+      const maxX = SPEED * Math.sin(Math.PI / 3);
+      ball.vx = clamp(ball.vx, -maxX, maxX);
+      ball.vy = (ball.vy < 0 ? -1 : 1) * Math.sqrt(SPEED * SPEED - ball.vx * ball.vx);
+      return true;
+    }
+
+    function update(dt) {
+      if (state !== 'playing' && state !== 'ready') return;
+      const direction = Number(keys.right) - Number(keys.left);
+      paddle.x = clamp(paddle.x + direction * PADDLE_SPEED * dt, 0, W - paddle.w);
+      if (state === 'ready') { dockBall(); return; }
+      const previousY = ball.y;
+      ball.x += ball.vx * dt;
+      ball.y += ball.vy * dt;
+      if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx); }
+      if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx); }
+      if (ball.y < ball.r) { ball.y = ball.r; ball.vy = Math.abs(ball.vy); }
+
+      // 아래로 내려오는 공이 패들 윗면을 지날 때만 받아냅니다.
+      if (ball.vy > 0 && previousY + ball.r <= paddle.y && ball.y + ball.r >= paddle.y) {
+        const fraction = (paddle.y - ball.r - previousY) / (ball.y - previousY);
+        const hitX = ball.x - ball.vx * dt * (1 - fraction);
+        if (hitX >= paddle.x - ball.r && hitX <= paddle.x + paddle.w + ball.r) {
+          const offset = clamp((hitX - paddle.x - paddle.w / 2) / (paddle.w / 2), -1, 1);
+          const angle = offset * Math.PI / 3;
+          ball.y = paddle.y - ball.r - 0.01;
+          ball.vx = SPEED * Math.sin(angle);
+          ball.vy = -SPEED * Math.cos(angle);
+        }
+      }
+      for (const block of blocks) {
+        if (block.alive && collideRect(block)) {
+          block.alive = false;
+          score += 10;
+          updateHUD();
+          if (blocks.every(item => !item.alive)) finish(true);
+          break;
+        }
+      }
+      if (state === 'playing' && ball.y - ball.r > H) loseLife();
+    }
+
+    function roundedRect(x, y, w, h, radius, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, radius);
+      ctx.fill();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#0d1524';
+      ctx.fillRect(0, 0, W, H);
+      // 작은 점으로만 배경을 그리므로 외부 이미지가 필요 없습니다.
+      ctx.fillStyle = '#25334a';
+      for (let x = 24; x < W; x += 24) {
+        for (let y = 24; y < H; y += 24) ctx.fillRect(x, y, 1, 1);
+      }
+      for (const block of blocks) {
+        if (!block.alive) continue;
+        roundedRect(block.x, block.y, block.w, block.h, 5, block.color);
+        roundedRect(block.x + 3, block.y + 2, block.w - 6, 2, 1, '#ffffff30');
+      }
+      ctx.strokeStyle = '#28364c';
+      ctx.setLineDash([4, 8]);
+      ctx.beginPath(); ctx.moveTo(24, H - 27); ctx.lineTo(W - 24, H - 27); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.shadowColor = '#bed6ff'; ctx.shadowBlur = 15;
+      roundedRect(paddle.x, paddle.y, paddle.w, paddle.h, 6, '#f2f6ff');
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // 작고 일정한 시간 간격으로 계산하여 기기별 속도 차이와 충돌 누락을 막습니다.
+    function frame(time) {
+      if (lastTime !== null) accumulator += Math.min((time - lastTime) / 1000, 0.05);
+      lastTime = time;
+      while (accumulator >= STEP) { update(STEP); accumulator -= STEP; }
+      draw();
+      requestAnimationFrame(frame);
+    }
+
+    function movePointer(event) {
+      if (state !== 'ready' && state !== 'playing') return;
+      const bounds = canvas.getBoundingClientRect();
+      const x = (event.clientX - bounds.left) * W / bounds.width;
+      paddle.x = clamp(x - paddle.w / 2, 0, W - paddle.w);
+      if (state === 'ready') dockBall();
+    }
+    canvas.addEventListener('pointermove', movePointer);
+    canvas.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      canvas.focus({ preventScroll: true });
+      canvas.setPointerCapture(event.pointerId);
+      movePointer(event);
+      start();
+    });
+    ui.action.addEventListener('click', () => { start(); canvas.focus({ preventScroll: true }); });
+    // 시작 안내의 어느 곳을 터치해도 발사하고, 이어서 드래그할 수 있습니다.
+    ui.overlay.addEventListener('pointerdown', event => {
+      if (event.target.closest('button') || event.button !== 0) return;
+      event.preventDefault();
+      canvas.setPointerCapture(event.pointerId);
+      movePointer(event);
+      start();
+      canvas.focus({ preventScroll: true });
+    });
+    window.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) return;
+      event.preventDefault();
+      if (event.code === 'ArrowLeft') keys.left = true;
+      if (event.code === 'ArrowRight') keys.right = true;
+      if (event.code === 'Space' && !event.repeat) start();
+    });
+    window.addEventListener('keyup', event => {
+      if (event.code === 'ArrowLeft') keys.left = false;
+      if (event.code === 'ArrowRight') keys.right = false;
+    });
+    function clearInput() {
+      keys.left = keys.right = false;
+      lastTime = null;
+      accumulator = 0;
+    }
+    window.addEventListener('blur', clearInput);
+    document.addEventListener('visibilitychange', clearInput);
+    resetGame();
+    draw();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
